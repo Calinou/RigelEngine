@@ -22,6 +22,7 @@
 #include "data/game_traits.hpp"
 #include "data/unit_conversions.hpp"
 #include "engine/sprite_factory.hpp"
+#include "renderer/upscaling_utils.hpp"
 
 #include <cmath>
 #include <string>
@@ -41,8 +42,8 @@ namespace
 constexpr auto NUM_HEALTH_SLICES = 8;
 
 constexpr auto RADAR_SIZE_PX = 32;
-constexpr auto RADAR_CENTER_POS_X = 288;
-constexpr auto RADAR_CENTER_POS_Y = 136;
+constexpr auto RADAR_CENTER_POS_X = 296 - 2;
+constexpr auto RADAR_CENTER_POS_Y = 3 * 8 + 2; // 136;
 
 constexpr auto RADAR_POS_X = RADAR_CENTER_POS_X - RADAR_SIZE_PX / 2 -
   data::GameTraits::inGameViewportOffset.x;
@@ -51,15 +52,16 @@ constexpr auto RADAR_POS_Y = RADAR_CENTER_POS_Y - RADAR_SIZE_PX / 2 -
 constexpr auto RADAR_CENTER_OFFSET_RELATIVE =
   base::Vec2{RADAR_SIZE_PX / 2, RADAR_SIZE_PX / 2 + 1};
 
-constexpr auto HUD_START_TOP_RIGHT =
-  base::Vec2{data::GameTraits::mapViewportWidthTiles, 0};
+// constexpr auto HUD_START_TOP_RIGHT =
+// base::Vec2{data::GameTraits::mapViewportWidthTiles, 0};
 constexpr auto HUD_START_BOTTOM_LEFT =
   base::Vec2{0, data::GameTraits::mapViewportHeightTiles};
 constexpr auto HUD_START_BOTTOM_RIGHT = base::Vec2{
   HUD_START_BOTTOM_LEFT.x + 28,
   data::GameTraits::mapViewportHeightTiles};
 
-constexpr auto INVENTORY_START_POS = base::Vec2{HUD_START_TOP_RIGHT.x + 1, 2};
+// constexpr auto INVENTORY_START_POS = base::Vec2{HUD_START_TOP_RIGHT.x + 1,
+// 2};
 
 // The letter collection indicator actors already contain an offset in the
 // actor info that positions them correctly. Unfortunately, that offset is
@@ -197,10 +199,10 @@ void HudRenderer::render(
   // OpenGL state switches needed.
 
   // These use the actor sprite sheet texture.
-  drawActorFrame(ActorID::HUD_frame_background, 0, HUD_START_TOP_RIGHT);
+  // drawActorFrame(ActorID::HUD_frame_background, 0, HUD_START_TOP_RIGHT);
   drawActorFrame(ActorID::HUD_frame_background, 1, HUD_START_BOTTOM_LEFT);
   drawActorFrame(ActorID::HUD_frame_background, 2, HUD_START_BOTTOM_RIGHT);
-  drawInventory(playerModel.inventory());
+  // drawInventory(playerModel.inventory());
   drawCollectedLetters(playerModel);
 
   // These use the UI sprite sheet texture.
@@ -212,48 +214,133 @@ void HudRenderer::render(
     *mpStatusSpriteSheetRenderer);
   drawHealthBar(playerModel);
   drawLevelNumber(mLevelNumber, *mpStatusSpriteSheetRenderer);
-  drawRadar(radarPositions);
+  // drawRadar(radarPositions);
 }
 
+
+void HudRenderer::drawInventorySmall(const data::PlayerModel& playerModel) const
+{
+  auto s = renderer::saveState(mpRenderer);
+  mpRenderer->setGlobalTranslation(
+    mpRenderer->globalTranslation() +
+    renderer::scaleVec({2, 2}, mpRenderer->globalScale()));
+
+
+  auto col = data::GameTraits::INGAME_PALETTE[1];
+  col.a = 180;
+  mpRenderer->drawFilledRectangle(
+    {{0, 0}, {int(playerModel.inventory().size()) * 2 * 8, 16}}, col);
+
+  drawInventory(playerModel.inventory());
+  // auto draw = [&](
+  // const ActorID id,
+  // const int frame,
+  // const base::Vec2& pos)
+  //{
+  // const auto& frameData = mpSpriteFactory->actorFrameData(id, frame);
+  // const auto destRect = base::Rect<int>{
+  // data::tileVectorToPixelVector(pos + frameData.mDrawOffset),
+  // renderer::scaleSize(data::tileExtentsToPixelExtents(frameData.mDimensions),
+  // {0.5f, 0.5f})};
+  // mpSpriteFactory->textureAtlas().draw(frameData.mImageId, destRect);
+  //};
+
+  // base::Vec2 drawPos{0, 0};
+  // for (const auto item : playerModel.inventory())
+  //{
+  // switch (item)
+  //{
+  // case InventoryItemType::CircuitBoard:
+  // draw(ActorID::White_box_circuit_card, 0, drawPos);
+  // break;
+
+  // case InventoryItemType::BlueKey:
+  // draw(ActorID::White_box_blue_key, 0, drawPos);
+  // break;
+
+  // case InventoryItemType::RapidFire:
+  // draw(ActorID::Rapid_fire_icon, 0, drawPos);
+  // break;
+
+  // case InventoryItemType::SpecialHintGlobe:
+  // draw(ActorID::Special_hint_globe_icon, 0, drawPos);
+  // break;
+
+  // case InventoryItemType::CloakingDevice:
+  // draw(ActorID::Cloaking_device_icon, 0, drawPos);
+  // break;
+  //}
+
+  //++drawPos.x;
+  //}
+}
 
 void HudRenderer::drawInventory(
   const std::vector<data::InventoryItemType>& inventory) const
 {
-  auto iItem = inventory.begin();
-  for (int row = 0; row < 3; ++row)
+  auto drawPos = base::Vec2{0, 0};
+  for (const auto itemType : inventory)
   {
-    for (int col = 0; col < 2; ++col)
+    switch (itemType)
     {
-      if (iItem != inventory.end())
-      {
-        const auto itemType = *iItem++;
-        const auto drawPos = INVENTORY_START_POS + base::Vec2{col * 2, row * 2};
+      case InventoryItemType::CircuitBoard:
+        drawActorFrame(ActorID::White_box_circuit_card, 0, drawPos);
+        break;
 
-        switch (itemType)
-        {
-          case InventoryItemType::CircuitBoard:
-            drawActorFrame(ActorID::White_box_circuit_card, 0, drawPos);
-            break;
+      case InventoryItemType::BlueKey:
+        drawActorFrame(ActorID::White_box_blue_key, 0, drawPos);
+        break;
 
-          case InventoryItemType::BlueKey:
-            drawActorFrame(ActorID::White_box_blue_key, 0, drawPos);
-            break;
+      case InventoryItemType::RapidFire:
+        drawActorFrame(ActorID::Rapid_fire_icon, 0, drawPos);
+        break;
 
-          case InventoryItemType::RapidFire:
-            drawActorFrame(ActorID::Rapid_fire_icon, 0, drawPos);
-            break;
+      case InventoryItemType::SpecialHintGlobe:
+        drawActorFrame(ActorID::Special_hint_globe_icon, 0, drawPos);
+        break;
 
-          case InventoryItemType::SpecialHintGlobe:
-            drawActorFrame(ActorID::Special_hint_globe_icon, 0, drawPos);
-            break;
-
-          case InventoryItemType::CloakingDevice:
-            drawActorFrame(ActorID::Cloaking_device_icon, 0, drawPos);
-            break;
-        }
-      }
+      case InventoryItemType::CloakingDevice:
+        drawActorFrame(ActorID::Cloaking_device_icon, 0, drawPos);
+        break;
     }
+    drawPos.x += 2;
   }
+
+  // auto iItem = inventory.begin();
+  // for (int row = 0; row < 3; ++row)
+  //{
+  // for (int col = 0; col < 2; ++col)
+  //{
+  // if (iItem != inventory.end())
+  //{
+  // const auto itemType = *iItem++;
+  // const auto drawPos = INVENTORY_START_POS + base::Vec2{col * 2, row * 2};
+
+  // switch (itemType)
+  //{
+  // case InventoryItemType::CircuitBoard:
+  // drawActorFrame(ActorID::White_box_circuit_card, 0, drawPos);
+  // break;
+
+  // case InventoryItemType::BlueKey:
+  // drawActorFrame(ActorID::White_box_blue_key, 0, drawPos);
+  // break;
+
+  // case InventoryItemType::RapidFire:
+  // drawActorFrame(ActorID::Rapid_fire_icon, 0, drawPos);
+  // break;
+
+  // case InventoryItemType::SpecialHintGlobe:
+  // drawActorFrame(ActorID::Special_hint_globe_icon, 0, drawPos);
+  // break;
+
+  // case InventoryItemType::CloakingDevice:
+  // drawActorFrame(ActorID::Cloaking_device_icon, 0, drawPos);
+  // break;
+  //}
+  //}
+  //}
+  //}
 }
 
 
@@ -348,6 +435,12 @@ void HudRenderer::drawRadar(const base::ArrayView<base::Vec2> positions) const
     const auto blinkColor = data::GameTraits::INGAME_PALETTE[blinkColorIndex];
     mpRenderer->drawPoint(RADAR_CENTER_OFFSET_RELATIVE, blinkColor);
   };
+
+
+  auto col = data::GameTraits::INGAME_PALETTE[1];
+  col.a = 180;
+  mpRenderer->drawFilledRectangle(
+    {{RADAR_POS_X, RADAR_POS_Y}, {RADAR_SIZE_PX, RADAR_SIZE_PX}}, col);
 
 
   if (mpOptions->mPerElementUpscalingEnabled)

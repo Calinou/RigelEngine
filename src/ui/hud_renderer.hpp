@@ -69,7 +69,8 @@ public:
     const data::PlayerModel& playerModel,
     base::ArrayView<base::Vec2> radarPositions);
 
-private:
+  void drawInventorySmall(const data::PlayerModel& playerModel) const;
+
   void
     drawInventory(const std::vector<data::InventoryItemType>& inventory) const;
   void drawHealthBar(const data::PlayerModel& playerModel) const;

@@ -152,7 +152,7 @@ auto viewportSizeWideScreen(renderer::Renderer* pRenderer)
 {
   const auto info = renderer::determineWidescreenViewport(pRenderer);
   return base::Extents{
-    info.mWidthTiles - HUD_WIDTH, data::GameTraits::mapViewportSize.height};
+    info.mWidthTiles, data::GameTraits::mapViewportSize.height};
 }
 
 
@@ -162,7 +162,8 @@ void setupWidescreenHudOffset(
 {
   const auto extraTiles =
     tilesOnScreen - data::GameTraits::mapViewportWidthTiles;
-  const auto hudOffset = (extraTiles - HUD_WIDTH) * data::GameTraits::tileSize;
+  const auto hudOffset =
+    ((extraTiles - HUD_WIDTH) * data::GameTraits::tileSize) / 2;
   pRenderer->setGlobalTranslation(
     localToGlobalTranslation(pRenderer, {hudOffset, 0}));
 }
@@ -610,6 +611,7 @@ void GameWorld::unsubscribe(entityx::EventManager& eventManager)
 
 bool GameWorld::needsPerElementUpscaling() const
 {
+  // return true;
   return mpSpriteFactory->hasHighResReplacements() ||
     mpState->mMapRenderer.hasHighResReplacements() ||
     mUiSpriteSheet.isHighRes();
@@ -843,7 +845,14 @@ void GameWorld::render(const float interpolationFactor)
 
       auto saved = setupWidescreenTopRowViewport(
         mpRenderer, info, mpState->mScreenShakeOffsetX);
-      drawTopRow(data::tilesToPixels(viewportSize.width));
+      drawTopRow(data::tilesToPixels(viewportSize.width - 6));
+
+      {
+        mpRenderer->setGlobalTranslation(localToGlobalTranslation(
+          mpRenderer,
+          data::tileVectorToPixelVector({viewportSize.width - 6, 0})));
+        mHudRenderer.drawInventorySmall(*mpPlayerModel);
+      }
     }
     else
     {
@@ -852,15 +861,38 @@ void GameWorld::render(const float interpolationFactor)
 
       mpRenderer->setGlobalTranslation(
         base::Vec2{mpState->mScreenShakeOffsetX, 0});
-      drawTopRow(data::tilesToPixels(viewportSize.width));
+      drawTopRow(data::tilesToPixels(viewportSize.width - 6));
 
       mpRenderer->setGlobalTranslation(base::Vec2{
         mpState->mScreenShakeOffsetX,
         data::GameTraits::inGameViewportOffset.y});
       drawWorld(viewportSize);
 
-      setupWidescreenHudOffset(mpRenderer, info.mWidthTiles);
-      drawHud();
+
+      const auto radarDots = collectRadarDots(
+        mpState->mEntities, mpState->mPlayer.orientedPosition());
+      mHudRenderer.drawInventorySmall(*mpPlayerModel);
+
+      mpRenderer->drawFilledRectangle(
+        {{0, data::tilesToPixels(data::GameTraits::mapViewportSize.height)},
+         {data::tilesToPixels(viewportSize.width), 4 * 8}},
+        data::GameTraits::INGAME_PALETTE[0]);
+      {
+        auto innerSave = renderer::saveState(mpRenderer);
+        setupWidescreenHudOffset(mpRenderer, info.mWidthTiles);
+        mHudRenderer.render(*mpPlayerModel, radarDots);
+      }
+      // drawHud();
+
+      {
+        const auto extraTiles =
+          info.mWidthTiles - data::GameTraits::mapViewportWidthTiles;
+        const auto hudOffset =
+          ((extraTiles - HUD_WIDTH) * data::GameTraits::tileSize);
+        mpRenderer->setGlobalTranslation(
+          localToGlobalTranslation(mpRenderer, {hudOffset, 0}));
+        mHudRenderer.drawRadar(radarDots);
+      }
     }
   }
   else
