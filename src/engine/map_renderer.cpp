@@ -244,11 +244,16 @@ void MapRenderer::renderBackdrop(
   const base::Extents& viewportSize) const
 {
   const auto saved = renderer::saveState(mpRenderer);
+
+  // Darken rendering to improve player, enemies and items visibility.
+  mpRenderer->setColorModulation(base::Color{128, 128, 128, 255});
   mpRenderer->setTextureRepeatEnabled(true);
   mpRenderer->drawTexture(
     mBackdropTexture.data(),
     calculateBackdropTexCoords(cameraPosition, viewportSize),
     {{}, data::tileExtentsToPixelExtents(viewportSize)});
+  // Restore original color for future draw calls.
+  mpRenderer->setColorModulation(base::Color{255, 255, 255, 255});
 }
 
 
@@ -280,7 +285,11 @@ void MapRenderer::renderMapTiles(
           continue;
         }
 
+        // Darken rendering to improve player, enemies and items visibility.
+        mpRenderer->setColorModulation(base::Color{128, 128, 128, 255});
         renderTile(tileIndex, x, y);
+        // Restore original color for future draw calls.
+        mpRenderer->setColorModulation(base::Color{255, 255, 255, 255});
       }
     }
   }
